@@ -17,8 +17,7 @@ app.add_middleware(CORSMiddleware,allow_origins=["http://localhost:3000"], allow
 @app.middleware("http")
 async def auth_middleware(request:Request,call_next):
     path = request.url.path
-    print("cookies: ",request.cookies)
-    print("path: ",path)
+    print("path accessed: ",path)
     return await call_next(request)
 
 

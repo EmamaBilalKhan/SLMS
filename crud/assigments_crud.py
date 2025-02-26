@@ -1,21 +1,35 @@
 from bson import ObjectId
+from schema.student_course_schema import get_student_course_collection
 from schema.assignment_schema import get_assignment_collection
 from datetime import datetime, timezone
 from schema.submission_schema import get_submissions_collection
 
 assignment_collection = get_assignment_collection()
 submissions_collection = get_submissions_collection()
+student_course_collection = get_student_course_collection()
 
-def get_all_assignments():
-    result = assignment_collection.aggregate([
-            {
-                "$project": {
-                    "_id": {"$toString": "$_id"},
-                    "title": 1,
-                    "description": 1,
-                    "role": 1,
-                    "due_date": {"$toString": "$due_date"},
-                }
+def get_all_assignments(student_id):
+    result = student_course_collection.aggregate([
+
+                {
+                    "$match": {"student_id": student_id}
+                },
+                {
+                    "$lookup": {
+                        "from": "assignments",
+                        "localField": "course_id",
+                        "foreignField": "course_id",
+                        "as": "assignment"
+                    }
+                },{
+                "$unwind": "$assignment"
+            },{
+            "$project": {
+                "_id": {"$toString": "$assignment._id"},
+                "title": "$assignment.title",
+                "description": "$assignment.description",
+                "due_date": {"$toString": "$assignment.due_date"}
+            }
             }
         ])
     if result is None:

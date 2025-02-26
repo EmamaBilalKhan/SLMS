@@ -28,9 +28,10 @@ def get_admin():
     return {"message": "Hello from Admin Route"}
 
 
-@router.get("/users", dependencies=[Depends(validate_admin_middleware)])
-def get_users():
+@router.get("/users")
+def get_users(request:Request):
     try:
+        validate_admin_middleware(request)
         response = get_all_users()
         if "error" in response:
             return JSONResponse(status_code=500, content=response)

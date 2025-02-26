@@ -15,6 +15,31 @@ router = APIRouter(prefix="/assignments", tags=["assignments"])
 assignment_collection = get_assignment_collection()
 submissions_collection = get_submissions_collection()
 
+def assignment_middleware(request: Request):
+    auth_header = request.headers.get("Authorization")
+
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+
+    token = auth_header.split("Bearer ")[1].strip()
+
+    try:
+        decoded_token = decode_token(token)
+        sub_data = decoded_token.get("sub", {})
+        user_id = sub_data.get("id")
+        user_role = sub_data.get("role")
+        if request.url.path == "/assignment/create-assignment":
+            if user_role not in ["Teacher", "Admin"]:
+                raise HTTPException(status_code=403,detail="Only Teacher or Admin can create an assignment")
+        if request.url.path == "/assignment/submit-assignment":
+            if user_role not in ["Student"]:
+                raise HTTPException(status_code=403,detail="Only Student can submit an assignment")
+
+        return user_id
+
+    except HTTPException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+
 def create_assignment_middleware(request: Request):
     auth_header = request.headers.get("Authorization")
 
@@ -106,13 +131,18 @@ def validate_submission_id(submission_id: str):
 
 
 @router.get("/get-assignments")
-def get_assignments():
-    response = get_all_assignments()
-    if "error" in response:
-        return JSONResponse(content=response, status_code=500)
-    return JSONResponse(content={"assignments": response}, status_code=200)
+def get_assignments(student_id: str = Depends(submit_assignment_middleware)):
+    try:
+        response = get_all_assignments(student_id)
+        if "error" in response:
+            return JSONResponse(content=response, status_code=500)
+        return JSONResponse(content={"assignments": response}, status_code=200)
+    except HTTPException as e:
+        return JSONResponse(content=e.detail, status_code=e.status_code)
+    except Exception as e:
+        return JSONResponse(content=str(e), status_code=500)
 
-@router.post("/create-assignment", dependencies=[Depends(create_assignment_middleware)])
+@router.post("/create-assignment", dependencies=[Depends(assignment_middleware)])
 def create_assignment(assignment : CreateAssignment):
     assignment = assignment.model_dump()
     response = create_new_assignment(assignment)
@@ -122,7 +152,7 @@ def create_assignment(assignment : CreateAssignment):
     return JSONResponse(content=response, status_code=201)
 
 @router.post("/submit-assignment")
-def submit_assignment(submitted_assignment: CreateSubmissions, student_id: str = Depends(submit_assignment_middleware)):
+def submit_assignment(submitted_assignment: CreateSubmissions, student_id: str = Depends(assignment_middleware)):
     try:
         submitted_assignment = submitted_assignment.model_dump()
         validate_assignment_id(submitted_assignment["assignment_id"])

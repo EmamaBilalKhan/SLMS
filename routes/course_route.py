@@ -1,9 +1,9 @@
 from fastapi.requests import Request
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Body
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import HTTPException
 from model.courses_model import CreateCourse, RegisterCourseRequest
-from crud.course_crud import create_course, get_all_courses, register_new_course
+from crud.course_crud import create_course, get_all_courses, register_new_course, get_all_enrollments_status, drop_course
 from utils.jwt_auth import decode_token
 from bson import ObjectId
 from schema.courses_schema import get_courses_collection
@@ -121,6 +121,32 @@ def register_course(
     except Exception as e:
         return JSONResponse(content=str(e), status_code=500)
 
+@router.get("/Enrollment")
+def get_enrollment_status(student_id: str = Depends(register_course_middleware)):
+    try:
+        response = get_all_enrollments_status(student_id)
+        if "error" in response:
+            return JSONResponse(content=response, status_code=500)
 
+        return JSONResponse(content={"courses":response}, status_code=200)
+    except HTTPException as e:
+        return JSONResponse(content=e.detail, status_code=e.status_code)
+    except Exception as e:
+        return JSONResponse(content=str(e), status_code=500)
 
+@router.post("/drop-course", dependencies=[Depends(register_course_middleware)])
+def drop_registered_course(
+        enrollment_id:str = Body(embed=True)):
+    try:
+
+        response = drop_course(enrollment_id)
+
+        if "error" in response:
+            return JSONResponse(content=response, status_code=400)
+
+        return JSONResponse(content=response, status_code=200)
+    except HTTPException as e:
+        return JSONResponse(content=e.detail, status_code=e.status_code)
+    except Exception as e:
+        return JSONResponse(content=str(e), status_code=500)
 
